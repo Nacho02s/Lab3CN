@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Transferencia de Archivos</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 400px;
+            text-align: center;
+        }
+        h1 {
+            color: #4CAF50;
+        }
+        .status {
+            margin: 20px 0;
+            font-size: 18px;
+        }
+        .status.success {
+            color: #4CAF50;
+        }
+        .status.error {
+            color: #f44336;
+        }
+        .details {
+            margin-top: 20px;
+            text-align: left;
+        }
+        .details p {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Reporte de Transferencia de Archivos</h1>
+        <div class="status success">
+            Estado: Transferencia Completa
+        </div>
+        <div class="details">
+            <p><strong>Nombre del Archivo:</strong> output.dat</p>
+            <p><strong>Paquetes Enviados:</strong> 11</p>
+            <p><strong>Paquetes Recibidos:</strong> 11</p>
+            <p><strong>Paquetes Perdidos:</strong> 0</p>
+            <p><strong>Paquetes Corruptos:</strong> 0</p>
+        </div>
+        <p>La transferencia del archivo se ha completado con éxito sin pérdidas ni corrupción.</p>
+    </div>
+</body>
+</html>
