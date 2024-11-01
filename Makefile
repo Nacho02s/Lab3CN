@@ -1,6 +1,6 @@
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -Wall -std=c++17
+CXXFLAGS = -Wall -std=c++11
 
 # Executable name
 TARGET = rft-client
@@ -24,13 +24,13 @@ $(TARGET): $(OBJS)
 clean:
 	rm -f $(OBJS) $(TARGET)
 
-# Create tarball for submission
-submit: clean
-	tar -cvf $(USER).tar.gz $(SRCS) Makefile README.txt
+# Tar for the submission
+mksubmit: clean
+	tar -cvf IgnacioSanz.tar.gz *
 
 # Additional convenience target for running the program
 run: $(TARGET)
 	./$(TARGET) -h <hostname> -p <port> -f <filename> [-d <debug level>]
 
 # Phony targets
-.PHONY: all clean submit run
+.PHONY: all clean mksubmit run
