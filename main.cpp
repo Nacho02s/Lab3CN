@@ -23,6 +23,7 @@ int main(int argc, char* argv[]) {
     std::string inputFilename;
     int LOG_LEVEL = 3;
     timerC timer(1000);  // 1-second timer
+    timer.setDuration(1000);
 
     // Parse command-line arguments
     int opt;
