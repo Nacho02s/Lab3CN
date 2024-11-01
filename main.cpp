@@ -17,75 +17,115 @@
 int main(int argc, char* argv[]) {
 
     // Defaults
-    uint16_t portNum(12345);
-    std::string hostname("isengard.mines.edu");
-    std::string inputFilename("input.dat");
+    // Default values
+    std::string hostname;
+    uint16_t portNum;
+    std::string inputFilename;
+    int LOG_LEVEL = 3;
+    timerC timer(1000);  // 1-second timer
 
+    // Parse command-line arguments
     int opt;
-    try {
-        while ((opt = getopt(argc, argv, "f:h:p:d:")) != -1) {
-            switch (opt) {
-                case 'p':
-                    portNum = std::stoi(optarg);
-                    break;
-                case 'h':
-                    hostname = optarg;
-                    break;
-                case 'd':
-                    LOG_LEVEL = std::stoi(optarg);
-                    break;
-                case 'f':
-                    inputFilename = optarg;
-                    break;
-                case '?':
-                default:
-                    std::cout << "Usage: " << argv[0] << " [-h hostname] [-p port] [-d debug_level]" << std::endl;
-                    break;
+    while ((opt = getopt(argc, argv, "h:p:f:d:")) != -1) {
+        switch (opt) {
+            case 'h': hostname = optarg; break;
+            case 'p': portNum = std::stoi(optarg); break;
+            case 'f': inputFilename = optarg; break;
+            case 'd': LOG_LEVEL = std::stoi(optarg); break;
+            default:
+                std::cerr << "Usage: " << argv[0] << " -h <hostname> -p <port> -f <filename> [-d <debug level>]\n";
+                return 1;
+        }
+    }
+
+    if (hostname.empty() || portNum == 0 || inputFilename.empty()) {
+        std::cerr << "Hostname, port, and filename are required.\n";
+        return 1;
+    }
+
+    // Initialize unreliable transport connection
+    unreliableTransportC transport(hostname, portNum);
+
+    // Open input file for reading
+    std::ifstream inputFile(inputFilename, std::ios::binary);
+    if (!inputFile.is_open()) {
+        FATAL << "Unable to open file: " << inputFilename << ENDL;
+        return 1;
+    }
+
+    uint16_t base = 1, nextSeqNum = 1;
+    bool allSent = false, allAcked = false;
+    std::array<datagramS, WINDOW_SIZE> sndpkt;  // Buffer for sent packets
+
+    while (!allSent || !allAcked) {
+        // Send packets within window
+        while (nextSeqNum < base + WINDOW_SIZE && !allSent) {
+            char data[MAX_PAYLOAD_LENGTH] = {};
+            inputFile.read(data, MAX_PAYLOAD_LENGTH);
+            int bytesRead = inputFile.gcount();
+
+            if (bytesRead > 0) {
+                datagramS pkt;
+                pkt.seqNum = nextSeqNum;
+                pkt.payloadLength = bytesRead;
+                std::copy(data, data + bytesRead, pkt.data);
+                pkt.checksum = computeChecksum(pkt);
+
+                transport.udt_send(pkt);
+                sndpkt[nextSeqNum % WINDOW_SIZE] = pkt;  // Store packet in buffer
+                INFO << "Packet sent with seqNum: " << nextSeqNum << ENDL;
+
+                if (base == nextSeqNum) {
+                    timer.start();  // Start timer for the first unacknowledged packet
+                }
+
+                nextSeqNum++;
+            } else {
+                allSent = true;  // No more data to send
+                break;
             }
         }
-    } catch (std::exception &e) {
-        FATAL << "Invalid command line arguments: " << e.what() << ENDL;
-        return(1);
-    }
 
-    TRACE << "Command line arguments parsed." << ENDL;
-    TRACE << "\tServername: " << hostname << ENDL;
-    TRACE << "\tPort number: " << portNum << ENDL;
-    TRACE << "\tDebug Level: " << LOG_LEVEL << ENDL;
-    TRACE << "\tOutput file name: " << inputFilename << ENDL;
+        // Receive acknowledgments
+        datagramS ackPkt;
+        while (transport.udt_receive(ackPkt) > 0) {
+            if (validateChecksum(ackPkt)) {
+                uint16_t ackNum = ackPkt.ackNum;
+                if (ackNum >= base) {
+                    base = ackNum + 1;
+                    INFO << "Acknowledgment received for packet seqNum: " << ackNum << ENDL;
 
-    // *********************************
-    // * Open the input file
-    // *********************************
-
-    try {
-
-        // ***************************************************************
-        // * Initialize your timer, window and the unreliableTransport etc.
-        // **************************************************************
-
-
-        // ***************************************************************
-        // * Send the file one datagram at a time until they have all been
-        // * acknowledged
-        // **************************************************************
-        bool allSent(false);
-        bool allAcked(false);
-        while ((!allSent) && (!allAcked)) {
-	
-		// Is there space in the window? If so, read some data from the file and send it.
-
-                // Call udt_recieve() to see if there is an acknowledgment.  If there is, process it.
- 
-                // Check to see if the timer has expired.
-
+                    if (base == nextSeqNum) {
+                        timer.stop();  // All packets acknowledged
+                        if (allSent) allAcked = true;
+                    } else {
+                        timer.start();  // Restart timer for unacknowledged packets
+                    }
+                }
+            }
         }
 
-        // cleanup and close the file and network.
+        // Handle timeout (retransmit unacknowledged packets)
+        if (timer.timeout()) {
+            INFO << "Timeout occurred; resending all unacknowledged packets." << ENDL;
+            timer.start();
 
-    } catch (std::exception &e) {
-        FATAL<< "Error: " << e.what() << ENDL;
-        exit(1);
+            for (uint16_t i = base; i < nextSeqNum; ++i) {
+                transport.udt_send(sndpkt[i % WINDOW_SIZE]);
+                INFO << "Resent packet with seqNum: " << i << ENDL;
+            }
+        }
     }
+
+    // Send an empty packet to indicate the end of the file transfer
+    datagramS endPkt;
+    endPkt.seqNum = nextSeqNum;
+    endPkt.payloadLength = 0;
+    endPkt.checksum = computeChecksum(endPkt);
+    transport.udt_send(endPkt);
+
+    // Clean up and close the file and network connection
+    inputFile.close();
+    INFO << "File transfer complete. Closing connection." << ENDL;
     return 0;
 }
